@@ -62,7 +62,7 @@ class Sensor:
     # called each time when sensor data is recieved
     def on_message(self,ws, message):
         #global xc_data, yc_data, zc_data
-        global peaks, alarm_timer
+        global peaks, alarm_timer, force
         
         with lock_draw:
             values = json.loads(message)['values']
@@ -155,6 +155,7 @@ class Sensor:
                             #if alarm_timer is not None:
                             alarm_timer.cancel()
                             alarm_timer = None
+                            force = 0
 
                 if self.length == max_window_size and self.last_peak > -1:
                     self.last_peak -= 1
@@ -257,11 +258,30 @@ class LoopTimer(threading.Thread):
 def interval():
     global alarm_timer
     if alarm_timer is None:
-        alarm_timer = LoopTimer(3, alarm)
+        alarm_timer = LoopTimer(5, alarm)
         alarm_timer.start()
-    
+
+force = 0
+force_list = [
+    ('vibe', 64),
+    ('vibe', 128),
+    ('vibe', 255),
+    ('zap', 10),
+    ('zap', 20),
+    ('zap', 30),
+    ('zap', 40),
+    ('zap', 50)
+]
 def alarm():
-    contents = urllib.request.urlopen("http://127.0.0.1:1337/vibe/50").read()
+    global force
+    
+    t = force_list[force]
+    mtd = t[0]
+    lvl = t[1]
+    if force < (len(force_list) - 1):
+        force += 1
+
+    contents = urllib.request.urlopen(f'http://127.0.0.1:1337/{mtd}/{lvl}').read()
 
 # Запускаем http сервер для связи с Pavlok:
 p = subprocess.Popen(['node', 'pavlok-srv.js'])

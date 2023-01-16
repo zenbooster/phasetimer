@@ -26,6 +26,12 @@ pavlok.login(function (result, code) {
 		pavlok.vibrate({value: lvl})
 		res.send('ok');
 	});
+	app.get('/zap/:lvl', function (req, res) {
+		var lvl = parseInt(req.params.lvl, 10);
+		console.log(lvl);
+		pavlok.zap({value: lvl})
+		res.send('ok');
+	});
 
 	app.listen(1337, function(){
 		console.log('Express server listening on port 1337');
