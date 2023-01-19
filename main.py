@@ -5,6 +5,7 @@ data recieved via SensorServer app over websocket
 
 """
 import sys
+import random
 from math import sqrt, pow
 from datetime import datetime
 from PyQt5 import QtWidgets, QtCore
@@ -28,16 +29,18 @@ def cre8msg(msg, fname):
     tts = gtts.gTTS(msg, lang = 'ru')
     tts.save(f'audio/{fname}.mp3')
 
-def saymsg(fname, vol=0.5):
+def saymsg(fname, vol=0.25):
     pygame.mixer.music.load(f'audio/{fname}.mp3')
     pygame.mixer.music.set_volume(vol)
     pygame.mixer.music.play()
+    
+def timed_log(s):
+    print(f'{datetime.now()}: {s}')
 
 class TMyApplication:
     def __init__(self):
-        #self.address = "192.168.1.137:8080"
-        #self.address = "192.168.1.133:8080"
-        self.address = "127.0.0.1:8080"
+        self.address = "192.168.1.133:8080"
+        #self.address = "127.0.0.1:8080"
         #self.interval_dir_period = 40*60
         self.interval_dir_period = 15
         self.interval_dir_cnt = 3
@@ -64,13 +67,16 @@ class TMyApplication:
 
         self.lock_draw = threading.Lock();
         
-        self.sound_volume = 1
+        self.sound_volume_pc = 1
         
     def run(self):
         sys.stdout.write('Подготавливаем голосовые сообщения...')
         cre8msg('Привет...', 'hi')
-        #cre8msg('Это же сон!', 'alarm')
-        cre8msg('Внимание!', 'alarm')
+        cre8msg('Это же сон!', 'alarm-0')
+        cre8msg('Ты во сне!', 'alarm-1')
+        cre8msg('Ты знаешь, что ты во сне?', 'alarm-2')
+        cre8msg('Осознавайся!', 'alarm-3')
+        #cre8msg('Внимание!', 'alarm')
         cre8msg('Принято!', 'off')
         cre8msg('Начинаем прямой метод.', 'dir-mtd')
         cre8msg('Начинаем непрямой метод.', 'ndir-mtd')
@@ -91,7 +97,9 @@ class TMyApplication:
         window = MainWindow(self)
         window.show()
 
+        random.seed(datetime.now().timestamp())
         self.alarm_timer = None
+        timed_log('Начинаем прямой метод.')
         saymsg('dir-mtd')
         self.interval_timer = LoopTimer(self.interval_dir_period, self.interval)
         self.interval_timer.start()
@@ -105,9 +113,9 @@ class TMyApplication:
         return res
 
     def on_alarm_cancel(self):
-        saymsg('off', self.sound_volume / 100.0)
+        saymsg('off', self.sound_volume_pc / 100.0)
 
-        self.sound_volume = 1
+        self.sound_volume_pc = 1
         self.alarm_time = 0
 
     def interval(self):
@@ -118,21 +126,23 @@ class TMyApplication:
                 else:
                     self.interval_timer.cancel()
                     self.interval_dir_cnt = 0
-                    saymsg('ndir-mtd')
+                    timed_log('Начинаем непрямой метод.')
+                    saymsg('ndir-mtd', self.sound_volume_pc / 100.0)
                     self.interval_timer = LoopTimer(self.interval_ndir_period, self.interval)
+                    self.interval_timer.start()
                     return
 
             self.alarm_timer = LoopTimer(self.alarm_period, self.alarm, self.on_alarm_cancel)
             self.alarm_timer.start()
 
     def alarm(self):
-        print(f'{datetime.now()}: сработал будильник')
-        saymsg('alarm', self.sound_volume / 100.0)
+        timed_log('сработал будильник')
+        saymsg(f'alarm-{random.randint(0, 3)}', self.sound_volume_pc / 100.0)
 
-        if self.sound_volume < 100:
-            self.sound_volume += 2
+        if self.sound_volume_pc < 100:
+            self.sound_volume_pc += 2
         else:
-            self.sound_volume = 100
+            self.sound_volume_pc = 100
 
         if not self.alarm_time:
             # последний элемент может быть ещё не заполнен:
@@ -253,7 +263,7 @@ class Sensor:
                         d = lp - pp
                         d /= self.sample_rate
                         if d <= 1:
-                            print(f'{datetime.now()}: принят двойной выдох')
+                            timed_log('принят двойной выдох')
                             self.myapp.alarm_timer.cancel()
                             self.myapp.alarm_timer = None
 
