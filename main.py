@@ -5,6 +5,7 @@ data recieved via SensorServer app over websocket
 
 """
 from math import sqrt, pow
+from datetime import datetime
 from PyQt5 import QtWidgets, QtCore
 import pyqtgraph as pg
 import numpy as np
@@ -106,6 +107,7 @@ class TMyApplication:
             self.alarm_timer.start()
 
     def alarm(self):
+        print(f'{datetime.now()}: сработал будильник')
         pygame.mixer.music.load('audio/alarm.mp3')
         pygame.mixer.music.set_volume(self.sound_volume / 100.0)
         pygame.mixer.music.play()
@@ -204,19 +206,19 @@ class Sensor:
                 if len(pks) >= 2:
                     lp = pks[-1]
                     pp = pks[-2]
+                    '''
                     if self.myapp.alarm_timer:
                         print(f'Sensor.on_message: self.myapp.alarm_time = {self.myapp.alarm_time}')
                         print(f'Sensor.on_message: self.myapp.time_data[lp] = {self.myapp.time_data[lp]}')
                         print(f'Sensor.on_message: self.myapp.time_data[pp] = {self.myapp.time_data[pp]}')
+                    '''
 
                     # Если сработал таймер, и двойной выдох был сделан после срабатывания:
                     if (self.myapp.alarm_timer is not None) and (self.myapp.alarm_time) and (self.myapp.time_data[lp] >= self.myapp.alarm_time) and (self.myapp.time_data[pp] >= self.myapp.alarm_time):
-                        print('HIT.1')
                         d = lp - pp
                         d /= self.sample_rate
                         if d <= 1:
-                            print('HIT.2')
-                            #if alarm_timer is not None:
+                            print(f'{datetime.now()}: принят двойной выдох')
                             self.myapp.alarm_timer.cancel()
                             self.myapp.alarm_timer = None
 
