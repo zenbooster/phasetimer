@@ -4,6 +4,7 @@ Python code to show real time plot from live accelerometer's
 data recieved via SensorServer app over websocket 
 
 """
+import sys
 from math import sqrt, pow
 from datetime import datetime
 from PyQt5 import QtWidgets, QtCore
@@ -23,13 +24,26 @@ import urllib.request
 import gtts
 import pygame
 
+def cre8msg(msg, fname):
+    tts = gtts.gTTS(msg, lang = 'ru')
+    tts.save(f'audio/{fname}.mp3')
+
+def saymsg(fname, vol=0.5):
+    pygame.mixer.music.load(f'audio/{fname}.mp3')
+    pygame.mixer.music.set_volume(vol)
+    pygame.mixer.music.play()
+
 class TMyApplication:
     def __init__(self):
         #self.address = "192.168.1.137:8080"
         #self.address = "192.168.1.133:8080"
         self.address = "127.0.0.1:8080"
-        #self.interval_period = 40*60
-        self.interval_period = 20
+        #self.interval_dir_period = 40*60
+        self.interval_dir_period = 15
+        self.interval_dir_cnt = 3
+        self.interval_dir_num = 0
+        self.interval_ndir_period = 20
+
         self.alarm_period = 5
 
         self.val = []
@@ -53,37 +67,34 @@ class TMyApplication:
         self.sound_volume = 1
         
     def run(self):
-        msg = 'Привет...'
-        tts = gtts.gTTS(msg, lang = 'ru')
-        tts.save("audio/hi.mp3")
-        #msg = 'Это же сон!'
-        msg = 'Внимание!'
-        tts = gtts.gTTS(msg, lang = 'ru')
-        tts.save("audio/alarm.mp3")
-        msg = 'Принято!'
-        tts = gtts.gTTS(msg, lang = 'ru')
-        tts.save("audio/off.mp3")
+        sys.stdout.write('Подготавливаем голосовые сообщения...')
+        cre8msg('Привет...', 'hi')
+        #cre8msg('Это же сон!', 'alarm')
+        cre8msg('Внимание!', 'alarm')
+        cre8msg('Принято!', 'off')
+        cre8msg('Начинаем прямой метод.', 'dir-mtd')
+        cre8msg('Начинаем непрямой метод.', 'ndir-mtd')
+        sys.stdout.write('Ok!\n')
 
         # Подключаемся к Sensor Server для доступа к данным акселерометра смартфона:
         sensor = Sensor(self, self.address, "android.sensor.accelerometer")
         sensor.connect() # asynchronous call
-
-        self.alarm_timer = None
-        self.interval_timer = LoopTimer(self.interval_period, self.interval)
-        self.interval_timer.start()
 
         app = QtWidgets.QApplication(sys.argv)
 
         pygame.init()
         pygame.mixer.init()
 
-        pygame.mixer.music.load('audio/hi.mp3')
-        pygame.mixer.music.set_volume(0.5)
-        pygame.mixer.music.play()
+        saymsg('hi')
 
         # call on Main thread
         window = MainWindow(self)
         window.show()
+
+        self.alarm_timer = None
+        saymsg('dir-mtd')
+        self.interval_timer = LoopTimer(self.interval_dir_period, self.interval)
+        self.interval_timer.start()
 
         res = app.exec_()
 
@@ -94,23 +105,29 @@ class TMyApplication:
         return res
 
     def on_alarm_cancel(self):
-        pygame.mixer.music.load('audio/off.mp3')
-        pygame.mixer.music.set_volume(self.sound_volume / 100.0)
-        pygame.mixer.music.play()
+        saymsg('off', self.sound_volume / 100.0)
 
         self.sound_volume = 1
         self.alarm_time = 0
 
     def interval(self):
         if self.alarm_timer is None:
+            if self.interval_dir_cnt:
+                if self.interval_dir_num < self.interval_dir_cnt:
+                    self.interval_dir_num += 1
+                else:
+                    self.interval_timer.cancel()
+                    self.interval_dir_cnt = 0
+                    saymsg('ndir-mtd')
+                    self.interval_timer = LoopTimer(self.interval_ndir_period, self.interval)
+                    return
+
             self.alarm_timer = LoopTimer(self.alarm_period, self.alarm, self.on_alarm_cancel)
             self.alarm_timer.start()
 
     def alarm(self):
         print(f'{datetime.now()}: сработал будильник')
-        pygame.mixer.music.load('audio/alarm.mp3')
-        pygame.mixer.music.set_volume(self.sound_volume / 100.0)
-        pygame.mixer.music.play()
+        saymsg('alarm', self.sound_volume / 100.0)
 
         if self.sound_volume < 100:
             self.sound_volume += 2
