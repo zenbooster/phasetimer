@@ -120,7 +120,19 @@ class TMyApplication:
         if not self.alarm_time:
             # последний элемент может быть ещё не заполнен:
             self.alarm_time = self.time_data[-2]
-            print(f'alarm: self.alarm_time = {self.alarm_time}')
+
+def get_last_movavg(a, ws=2):
+    sz = len(a)
+    wsz = min(sz, ws)
+    res = 0
+    for i in range(wsz):
+        res += a[-(i+1)]
+
+    return res / wsz
+
+def add_movavg(a, v, ws=3):
+    a.append(v)
+    a[-1] = get_last_movavg(a)
 
 class Sensor:
     #constructor
@@ -167,9 +179,12 @@ class Sensor:
             self.myapp.x_data.append(x)
             self.myapp.y_data.append(y)
             self.myapp.z_data.append(z)
-            self.myapp.xc_data.append(x)
-            self.myapp.yc_data.append(y)
-            self.myapp.zc_data.append(z)
+            #self.myapp.xc_data.append(x)
+            add_movavg(self.myapp.xc_data, x)
+            #self.myapp.yc_data.append(y)
+            add_movavg(self.myapp.yc_data, y)
+            #self.myapp.zc_data.append(z)
+            add_movavg(self.myapp.zc_data, z)
 
             if self.length > 15:
                 if not self.is_pca_inc:
@@ -178,8 +193,11 @@ class Sensor:
                 # Фильтр 2-го порядка для частот выше 2-х Герц.
                 sos = signal.butter(2, 2, 'lp', fs=self.sample_rate, output='sos')
                 self.myapp.xc_data[-1] = signal.sosfilt(sos, self.myapp.x_data).tolist()[-1]
+                self.myapp.xc_data[-1] = get_last_movavg(self.myapp.xc_data)
                 self.myapp.yc_data[-1] = signal.sosfilt(sos, self.myapp.y_data).tolist()[-1]
+                self.myapp.yc_data[-1] = get_last_movavg(self.myapp.yc_data)
                 self.myapp.zc_data[-1] = signal.sosfilt(sos, self.myapp.z_data).tolist()[-1]
+                self.myapp.zc_data[-1] = get_last_movavg(self.myapp.zc_data)
 
                 valc = []
                 for i in range(self.length):
