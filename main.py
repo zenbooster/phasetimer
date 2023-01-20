@@ -39,15 +39,21 @@ def timed_log(s):
 
 class TMyApplication:
     def __init__(self):
-        self.address = "192.168.1.133:8080"
-        #self.address = "127.0.0.1:8080"
-        #self.interval_dir_period = 40*60
-        self.interval_dir_period = 15
-        self.interval_dir_cnt = 3
+        #self.address = "192.168.1.133:8080"
+        self.address = "127.0.0.1:8080"
+        self.debug = False
+
+        self.interval_dir_cnt = 5
         self.interval_dir_num = 0
-        self.interval_ndir_period = 20
+        if self.debug:
+            self.interval_dir_period = 10
+            self.interval_ndir_period = 15
+        else:
+            self.interval_dir_period = 3*60
+            self.interval_ndir_period = 40*60
 
         self.alarm_period = 5
+        self.sample_rate = 25
 
         self.val = []
         self.x_data = []
@@ -82,6 +88,9 @@ class TMyApplication:
         cre8msg('Начинаем непрямой метод.', 'ndir-mtd')
         sys.stdout.write('Ok!\n')
 
+        random.seed(datetime.now().timestamp())
+        self.alarm_timer = None
+
         # Подключаемся к Sensor Server для доступа к данным акселерометра смартфона:
         sensor = Sensor(self, self.address, "android.sensor.accelerometer")
         sensor.connect() # asynchronous call
@@ -97,8 +106,6 @@ class TMyApplication:
         window = MainWindow(self)
         window.show()
 
-        random.seed(datetime.now().timestamp())
-        self.alarm_timer = None
         timed_log('Начинаем прямой метод.')
         saymsg('dir-mtd')
         self.interval_timer = LoopTimer(self.interval_dir_period, self.interval)
@@ -148,7 +155,7 @@ class TMyApplication:
             # последний элемент может быть ещё не заполнен:
             self.alarm_time = self.time_data[-2]
 
-def get_last_movavg(a, ws=2):
+def get_last_movavg(a, ws=3):
     sz = len(a)
     wsz = min(sz, ws)
     res = 0
@@ -157,7 +164,7 @@ def get_last_movavg(a, ws=2):
 
     return res / wsz
 
-def add_movavg(a, v, ws=3):
+def add_movavg(a, v, ws=5):
     a.append(v)
     a[-1] = get_last_movavg(a)
 
@@ -169,7 +176,8 @@ class Sensor:
         self.length = 0
         self.is_pca_inc = False
         self.last_peak = -1
-        self.sample_rate = 50
+        #self.sample_rate = 50
+        self.sample_rate = myapp.sample_rate
         self.max_window_dur = 10
         self.max_window_size = self.max_window_dur * self.sample_rate
         self.myapp = myapp
@@ -243,7 +251,7 @@ class Sensor:
                         self.myapp.pc_data.append(r[i][0])
                 
                 minPeakHeight = 0.05 #np.std(self.myapp.pc_data)  # this should be tuned
-                pks, peak_props = find_peaks(self.myapp.pc_data, height=minPeakHeight, distance=self.sample_rate // 2)
+                pks, peak_props = find_peaks(self.myapp.pc_data, height=minPeakHeight, distance=self.sample_rate // 2, prominence=0.1)
                 self.myapp.peaks = [0 for i in range(self.length)]
                 for i in pks:
                     self.myapp.peaks[i] = 1
@@ -251,18 +259,12 @@ class Sensor:
                 if len(pks) >= 2:
                     lp = pks[-1]
                     pp = pks[-2]
-                    '''
-                    if self.myapp.alarm_timer:
-                        print(f'Sensor.on_message: self.myapp.alarm_time = {self.myapp.alarm_time}')
-                        print(f'Sensor.on_message: self.myapp.time_data[lp] = {self.myapp.time_data[lp]}')
-                        print(f'Sensor.on_message: self.myapp.time_data[pp] = {self.myapp.time_data[pp]}')
-                    '''
 
                     # Если сработал таймер, и двойной выдох был сделан после срабатывания:
                     if (self.myapp.alarm_timer is not None) and (self.myapp.alarm_time) and (self.myapp.time_data[lp] >= self.myapp.alarm_time) and (self.myapp.time_data[pp] >= self.myapp.alarm_time):
                         d = lp - pp
                         d /= self.sample_rate
-                        if d <= 1:
+                        if d <= 1.25:
                             timed_log('принят двойной выдох')
                             self.myapp.alarm_timer.cancel()
                             self.myapp.alarm_timer = None
@@ -326,7 +328,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.peaks_line =  self.graphWidget.plot([],[], name="peaks", pen=pg.mkPen(color=myapp.peaks_color))
       
         self.timer = QtCore.QTimer()
-        self.timer.setInterval(50)
+        self.timer.setInterval(int((1000 / myapp.sample_rate) / 1.5))
         self.timer.timeout.connect(self.update_plot_data) # call update_plot_data function every 50 milisec
         self.timer.start()
 
