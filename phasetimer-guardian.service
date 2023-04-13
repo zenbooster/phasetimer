@@ -2,7 +2,7 @@
 Description = Служба управления phasetimer.
 After=sound.target
 After=bluetooth.target
-After=drosecl.service
+After=phasetimer.service
  
 [Service]
 Type = simple
