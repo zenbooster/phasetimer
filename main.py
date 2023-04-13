@@ -14,9 +14,9 @@ import websocket
 import json
 import threading
 import urllib.request
-
 import gtts
 import pygame
+import time
 
 running = True
 
@@ -34,7 +34,8 @@ def timed_log(s):
 
 class TMyApplication:
     def __init__(self):
-        self.address = "192.168.1.130:8080"
+        #self.address = "192.168.1.185:8080"
+        self.address = "192.168.4.32:8080"
         #self.address = "127.0.0.1:8080"
         self.debug = False
 
@@ -62,15 +63,27 @@ class TMyApplication:
         self.time_data = []
         self.alarm_time = 0
 
-        self.pc_data_color = "#000000"   # black
-        self.peaks_color = "#d32f2f"   # red
-        self.background_color = "#fafafa" # white (material)
-
-        self.lock_draw = threading.Lock();
-
         self.sound_volume_pc = 1
 
+        self.interval_timer = None
+        self.alarm_timer = None
+
+    def timer_start(self):
+        self.interval_timer = LoopTimer(self.interval_dir_period, self.interval)
+        self.interval_timer.start()
+
+    def timer_stop(self):
+        if self.interval_timer is not None:
+          self.interval_timer.cancel()
+          self.interval_timer = None
+
+        if self.alarm_timer is not None:
+          self.alarm_timer.cancel()
+          self.alarm_timer = None
+
     def run(self):
+        global running
+
         sys.stdout.write('Подготавливаем голосовые сообщения...')
         cre8msg('Привет...', 'hi')
         cre8msg('Это же сон!', 'alarm-0')
@@ -80,38 +93,40 @@ class TMyApplication:
         cre8msg('Принято!', 'off')
         cre8msg('Начинаем прямой метод.', 'dir-mtd')
         cre8msg('Начинаем непрямой метод.', 'ndir-mtd')
+        cre8msg('Ошибка подключения к акселерометру.', 'sens-srv-err')
         sys.stdout.write('Ok!\n')
 
         random.seed(datetime.now().timestamp())
-        self.alarm_timer = None
-
-        # Подключаемся к Sensor Server для доступа к данным акселерометра смартфона:
-        sensor = Sensor(self, self.address, "android.sensor.accelerometer")
-        sensor.connect() # asynchronous call
 
         pygame.init()
         pygame.mixer.init()
 
         saymsg('hi')
+        time.sleep(1)
 
-        timed_log('Начинаем прямой метод.')
-        saymsg('dir-mtd')
-        self.interval_timer = LoopTimer(self.interval_dir_period, self.interval)
-        self.interval_timer.start()
+        while(True):
+          running = True
+          # Подключаемся к Sensor Server для доступа к данным акселерометра смартфона:
+          sensor = Sensor(self, self.address, "android.sensor.accelerometer")
+          sensor.connect() # asynchronous call
 
-        try:
-          while running:
-            pass
-        except KeyboardInterrupt:
+          try:
+            while running:
+              pass
+
+            if sensor.is_error:
+              saymsg('sens-srv-err')
+              time.sleep(3)
+              continue
+
+          except KeyboardInterrupt:
             print('Выходим...')
 
-        sensor.disconnect()
+          sensor.disconnect()
+          break
+
         pygame.quit()
         res = 0
-
-        self.interval_timer.cancel()
-        if self.alarm_timer is not None:
-            self.alarm_timer.cancel()
 
         return res
 
@@ -176,107 +191,113 @@ class Sensor:
         self.max_window_dur = 10
         self.max_window_size = self.max_window_dur * self.sample_rate
         self.myapp = myapp
+        self.is_error = False
 
     # called each time when sensor data is recieved
     def on_message(self, ws, message):
-        with self.myapp.lock_draw:
-            values = json.loads(message)['values']
-            timestamp = json.loads(message)['timestamp']
+        values = json.loads(message)['values']
+        timestamp = json.loads(message)['timestamp']
 
-            if self.length == self.max_window_size:
-                self.myapp.val.pop(0)
-                self.myapp.x_data.pop(0)
-                self.myapp.y_data.pop(0)
-                self.myapp.z_data.pop(0)
-                self.myapp.xc_data.pop(0)
-                self.myapp.yc_data.pop(0)
-                self.myapp.zc_data.pop(0)
+        if self.length == self.max_window_size:
+            self.myapp.val.pop(0)
+            self.myapp.x_data.pop(0)
+            self.myapp.y_data.pop(0)
+            self.myapp.z_data.pop(0)
+            self.myapp.xc_data.pop(0)
+            self.myapp.yc_data.pop(0)
+            self.myapp.zc_data.pop(0)
 
-                if self.is_pca_inc:
-                    self.myapp.pc_data.pop(0)
+            if self.is_pca_inc:
+                self.myapp.pc_data.pop(0)
 
-                self.myapp.time_data.pop(0)
+            self.myapp.time_data.pop(0)
 
-            self.myapp.val.append(values)
-            self.length = len(self.myapp.val)
-            self.myapp.time_data.append(timestamp / 1000000000.0)
+        self.myapp.val.append(values)
+        self.length = len(self.myapp.val)
+        self.myapp.time_data.append(timestamp / 1000000000.0)
 
-            x = values[0]
-            y = values[1]
-            z = values[2]
+        x = values[0]
+        y = values[1]
+        z = values[2]
 
-            self.myapp.x_data.append(x)
-            self.myapp.y_data.append(y)
-            self.myapp.z_data.append(z)
-            add_movavg(self.myapp.xc_data, x)
-            add_movavg(self.myapp.yc_data, y)
-            add_movavg(self.myapp.zc_data, z)
+        self.myapp.x_data.append(x)
+        self.myapp.y_data.append(y)
+        self.myapp.z_data.append(z)
+        add_movavg(self.myapp.xc_data, x)
+        add_movavg(self.myapp.yc_data, y)
+        add_movavg(self.myapp.zc_data, z)
 
-            if self.length > 15:
-                if not self.is_pca_inc:
-                    self.myapp.pc_data.clear()
+        if self.length > 15:
+            if not self.is_pca_inc:
+                self.myapp.pc_data.clear()
 
-                # Фильтр 2-го порядка для частот выше 2-х Герц.
-                sos = signal.butter(2, 2, 'lp', fs=self.sample_rate, output='sos')
-                self.myapp.xc_data[-1] = signal.sosfilt(sos, self.myapp.x_data).tolist()[-1]
-                self.myapp.xc_data[-1] = get_last_movavg(self.myapp.xc_data)
-                self.myapp.yc_data[-1] = signal.sosfilt(sos, self.myapp.y_data).tolist()[-1]
-                self.myapp.yc_data[-1] = get_last_movavg(self.myapp.yc_data)
-                self.myapp.zc_data[-1] = signal.sosfilt(sos, self.myapp.z_data).tolist()[-1]
-                self.myapp.zc_data[-1] = get_last_movavg(self.myapp.zc_data)
+            # Фильтр 2-го порядка для частот выше 2-х Герц.
+            sos = signal.butter(2, 2, 'lp', fs=self.sample_rate, output='sos')
+            self.myapp.xc_data[-1] = signal.sosfilt(sos, self.myapp.x_data).tolist()[-1]
+            self.myapp.xc_data[-1] = get_last_movavg(self.myapp.xc_data)
+            self.myapp.yc_data[-1] = signal.sosfilt(sos, self.myapp.y_data).tolist()[-1]
+            self.myapp.yc_data[-1] = get_last_movavg(self.myapp.yc_data)
+            self.myapp.zc_data[-1] = signal.sosfilt(sos, self.myapp.z_data).tolist()[-1]
+            self.myapp.zc_data[-1] = get_last_movavg(self.myapp.zc_data)
 
-                valc = []
-                for i in range(self.length):
-                    valc.append([self.myapp.xc_data[i], self.myapp.yc_data[i], self.myapp.zc_data[i]])
+            valc = []
+            for i in range(self.length):
+                valc.append([self.myapp.xc_data[i], self.myapp.yc_data[i], self.myapp.zc_data[i]])
 
-                n_components = 1
-                #if self.length >= n_components:
-                av = np.array(valc)
-                pca = PCA(n_components=n_components)
+            n_components = 1
+            #if self.length >= n_components:
+            av = np.array(valc)
+            pca = PCA(n_components=n_components)
 
-                r = pca.fit_transform(av)
-                if self.is_pca_inc:
-                    self.myapp.pc_data[-1] = r[-1][0]
-                else:
-                    for i in range(self.length):
-                        self.myapp.pc_data.append(r[i][0])
-
-                minPeakHeight = 0.05 #np.std(self.myapp.pc_data)  # this should be tuned
-                pks, peak_props = find_peaks(self.myapp.pc_data, height=minPeakHeight, distance=self.sample_rate // 2, prominence=0.1)
-                self.myapp.peaks = [0 for i in range(self.length)]
-                for i in pks:
-                    self.myapp.peaks[i] = 1
-
-                if len(pks) >= 2:
-                    lp = pks[-1]
-                    pp = pks[-2]
-
-                    # Если сработал таймер, и двойной выдох был сделан после срабатывания:
-                    if (self.myapp.alarm_timer is not None) and (self.myapp.alarm_time) and (self.myapp.time_data[lp] >= self.myapp.alarm_time) and (self.myapp.time_data[pp] >= self.myapp.alarm_time):
-                        d = lp - pp
-                        d /= self.sample_rate
-                        if d <= 1.25:
-                            timed_log('принят двойной выдох')
-                            self.myapp.alarm_timer.cancel()
-                            self.myapp.alarm_timer = None
-
+            r = pca.fit_transform(av)
+            if self.is_pca_inc:
+                self.myapp.pc_data[-1] = r[-1][0]
             else:
-                self.myapp.pc_data.append(0)
-                self.myapp.peaks.append(0)
+                for i in range(self.length):
+                    self.myapp.pc_data.append(r[i][0])
+
+            minPeakHeight = 0.05 #np.std(self.myapp.pc_data)  # this should be tuned
+            pks, peak_props = find_peaks(self.myapp.pc_data, height=minPeakHeight, distance=self.sample_rate // 2, prominence=0.1)
+            self.myapp.peaks = [0 for i in range(self.length)]
+            for i in pks:
+                self.myapp.peaks[i] = 1
+
+            if len(pks) >= 2:
+                lp = pks[-1]
+                pp = pks[-2]
+
+                # Если сработал таймер, и двойной выдох был сделан после срабатывания:
+                if (self.myapp.alarm_timer is not None) and (self.myapp.alarm_time) and (self.myapp.time_data[lp] >= self.myapp.alarm_time) and (self.myapp.time_data[pp] >= self.myapp.alarm_time):
+                    d = lp - pp
+                    d /= self.sample_rate
+                    if d <= 1.25:
+                        timed_log('принят двойной выдох')
+                        self.myapp.alarm_timer.cancel()
+                        self.myapp.alarm_timer = None
+
+        else:
+            self.myapp.pc_data.append(0)
+            self.myapp.peaks.append(0)
 
     def on_error(self,ws, error):
         print("error occurred")
         print(error)
+        self.is_error = True
 
-    def on_close(self,ws, close_code, reason):
+    def on_close(self, ws, close_code, reason):
         global running
         running = False
         print("connection close")
         print("close code : ", close_code)
         print("reason : ", reason  )
+        self.myapp.timer_stop()
 
-    def on_open(self,ws):
+    def on_open(self, ws):
         print(f"connected to : {self.address}")
+
+        timed_log('Начинаем прямой метод.')
+        saymsg('dir-mtd')
+        self.myapp.timer_start()
 
     # Call this method on seperate Thread
     def make_websocket_connection(self):
@@ -295,7 +316,8 @@ class Sensor:
         thread.start()
 
     def disconnect(self):
-        self.ws.close()
+        if self.ws.sock:
+          self.ws.sock.close()
 
 class LoopTimer(threading.Thread):
     def __init__(self, interval, function, on_cancel=None, args=None, kwargs=None):

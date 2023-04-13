@@ -1,0 +1,19 @@
+[Unit]
+Description = Служба управления phasetimer.
+After=sound.target
+After=bluetooth.target
+After=drosecl.service
+ 
+[Service]
+Type = simple
+KillSignal=SIGINT
+WorkingDirectory=/home/zenbooster/git/phasetimer
+ExecStart = python3 /home/zenbooster/git/phasetimer/guardian.py
+Restart = on-failure
+SyslogIdentifier = phasetimer-guardian
+RestartSec = 5
+TimeoutStartSec = infinity
+#EnvironmentFile=/etc/environment
+ 
+[Install]
+WantedBy = multi-user.target

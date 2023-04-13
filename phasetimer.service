@@ -1,0 +1,22 @@
+[Unit]
+Description = Служба подбуживания для практики фазы.
+After=network.target
+After=sound.target
+After=bluetooth.target
+ 
+[Service]
+Type = simple
+KillSignal=SIGINT
+WorkingDirectory=/home/zenbooster/git/phasetimer
+ExecStart = python3 /home/zenbooster/git/phasetimer/main.py
+User = zenbooster
+Group = zenbooster
+Restart = on-failure
+SyslogIdentifier = phasetimer
+RestartSec = 5
+TimeoutStartSec = infinity
+#EnvironmentFile=/etc/environment
+ 
+[Install]
+#WantedBy = multi-user.target
+WantedBy = default.target
