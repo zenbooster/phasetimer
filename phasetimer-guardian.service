@@ -1,19 +1,18 @@
 [Unit]
-Description = Служба управления phasetimer.
+Description=Служба управления phasetimer.
 After=sound.target
 After=bluetooth.target
-After=phasetimer.service
  
 [Service]
-Type = simple
+Type=simple
 KillSignal=SIGINT
 WorkingDirectory=/home/zenbooster/git/phasetimer
-ExecStart = python3 /home/zenbooster/git/phasetimer/guardian.py
-Restart = on-failure
-SyslogIdentifier = phasetimer-guardian
-RestartSec = 5
-TimeoutStartSec = infinity
-#EnvironmentFile=/etc/environment
- 
+ExecStartPre=hciconfig hci0 up
+ExecStart=python3 /home/zenbooster/git/phasetimer/guardian.py
+Restart=on-failure
+SyslogIdentifier=phasetimer-guardian
+RestartSec=5
+TimeoutStartSec=infinity
+
 [Install]
-WantedBy = multi-user.target
+WantedBy=multi-user.target

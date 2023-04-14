@@ -34,8 +34,8 @@ def timed_log(s):
 
 class TMyApplication:
     def __init__(self):
-        #self.address = "192.168.1.185:8080"
-        self.address = "192.168.4.32:8080"
+        self.address = "192.168.1.185:8080"
+        #self.address = "192.168.4.32:8080"
         #self.address = "127.0.0.1:8080"
         self.debug = False
 
